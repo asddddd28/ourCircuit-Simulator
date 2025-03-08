@@ -1,0 +1,1010 @@
+./main.py:
+'''
+import tkinter as tk
+from gui.toolbar import Toolbar
+from gui.components import ComponentPanel
+from gui.analysis import AnalysisPanel
+from gui.canvas import CircuitCanvas
+from utils.file_io import FileIOHandler
+from utils.helpers import show_about
+
+class CircuitSimulator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("电路分析软件")
+        self.root.geometry("1200x800")
+
+        self.components = []
+        self.wires = []
+        self.current_component = None
+
+        self.file_io_handler = FileIOHandler(self, self.root) # Pass root and self for canvas access later
+        self.circuit_canvas = CircuitCanvas(self, root) # Pass root and self for component management
+        self.toolbar = Toolbar(self, root)
+        self.component_panel = ComponentPanel(self, root)
+        self.analysis_panel = AnalysisPanel(self, root)
+
+        self.create_menu()
+        self.toolbar.create_toolbar()
+        self.component_panel.create_component_panel()
+        self.circuit_canvas.create_canvas()
+        self.analysis_panel.create_analysis_panel()
+
+    def create_menu(self):
+        menubar = tk.Menu(self.root)
+
+        # 文件菜单
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="新建", command=self.file_io_handler.new_project)
+        file_menu.add_command(label="打开", command=self.file_io_handler.open_project)
+        file_menu.add_command(label="保存", command=self.file_io_handler.save_project)
+        file_menu.add_separator()
+        file_menu.add_command(label="退出", command=self.root.quit)
+        menubar.add_cascade(label="文件", menu=file_menu)
+
+        # 帮助菜单
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label="关于", command=lambda: show_about())
+        menubar.add_cascade(label="帮助", menu=help_menu)
+
+        self.root.config(menu=menubar)
+
+    def select_component(self, component_name):
+        self.current_component = component_name
+
+    def place_component(self, x, y):
+        if self.current_component:
+            self.circuit_canvas.draw_component(x, y, self.current_component)
+            self.create_component_instance(x, y, self.current_component)
+
+    def create_component_instance(self, x, y, component_type_name):
+        self.circuit_canvas.create_component_instance(x, y, component_type_name)
+
+    def run_analysis(self, method):
+        # Placeholder for analysis execution
+        print(f"Running analysis: {method}")
+
+    # Methods to be called by submodules to interact with main app's data if needed.
+    def get_components(self):
+        return self.components
+
+    def get_wires(self):
+        return self.wires
+
+    def set_components(self, components):
+        self.components = components
+
+    def set_wires(self, wires):
+        self.wires = wires
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = CircuitSimulator(root)
+    root.mainloop()
+'''
+./main1.py:
+'''
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import json
+
+class CircuitSimulator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("电路分析软件")
+        self.root.geometry("1200x800")
+        
+        # 电路元件存储结构
+        self.components = []
+        self.wires = []
+        self.current_component = None
+        
+        self.create_menu()
+        self.create_toolbar()
+        self.create_left_panel()
+        self.create_center_area()
+        self.create_right_panel()
+        
+    def create_menu(self):
+        menubar = tk.Menu(self.root)
+        
+        # 文件菜单
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="新建", command=self.new_project)
+        file_menu.add_command(label="打开", command=self.open_project)
+        file_menu.add_command(label="保存", command=self.save_project)
+        file_menu.add_separator()
+        file_menu.add_command(label="退出", command=self.root.quit)
+        menubar.add_cascade(label="文件", menu=file_menu)
+        
+        # 帮助菜单
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label="关于", command=self.show_about)
+        menubar.add_cascade(label="帮助", menu=help_menu)
+        
+        self.root.config(menu=menubar)
+    
+    def create_toolbar(self):
+        toolbar = ttk.Frame(self.root)
+        tools = ["新建", "打开", "保存"]
+        for tool in tools:
+            btn = ttk.Button(toolbar, text=tool, command=lambda t=tool: self.toolbar_action(t))
+            btn.pack(side=tk.LEFT, padx=2, pady=2)
+        toolbar.pack(side=tk.TOP, fill=tk.X)
+    
+    def create_left_panel(self):
+        left_panel = ttk.Frame(self.root, width=200)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y)
+        
+        # 元件分类树
+        tree = ttk.Treeview(left_panel)
+        tree.heading("#0", text="元件库", anchor=tk.W)
+        
+        categories = {
+            "线性电阻": ["电阻"],
+            "非线性电阻": ["二极管", "三极管(NMOS)", "三极管(PMOS)", "NPNBJT", "PNPBJT", "集成运放"],
+            "动态元件": ["电容", "电感"],
+            "开关元件": ["开关(开)", "开关(关)"],
+            "电源元件": ["直流电压源", "直流电流源", "交流电压源", "交流电流源"],
+            "其他": ["导线", "地", "结点"]
+        }
+        
+        for cat, items in categories.items():
+            node = tree.insert("", tk.END, text=cat)
+            for item in items:
+                tree.insert(node, tk.END, text=item)
+        
+        tree.bind("<<TreeviewSelect>>", self.select_component)
+        tree.pack(expand=True, fill=tk.BOTH)
+        
+    def create_center_area(self):
+        center_frame = ttk.Frame(self.root)
+        center_frame.pack(expand=True, fill=tk.BOTH)
+        
+        self.canvas = tk.Canvas(center_frame, bg="white")
+        self.canvas.pack(expand=True, fill=tk.BOTH)
+        
+        # 画布事件绑定
+        self.canvas.bind("<Button-1>", self.place_component)
+        self.canvas.bind("<B1-Motion>", self.draw_wire)
+        self.canvas.bind("<ButtonRelease-1>", self.finish_wire)
+        
+    def create_right_panel(self):
+        right_panel = ttk.Frame(self.root, width=300)
+        right_panel.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        analysis = [
+            ("直流分析", ["节点解析法"]),
+            ("电路定理", ["戴维南定理", "诺顿定理", "叠加定理"]),
+            ("信号分析", ["大信号分析", "小信号分析"]),
+            ("动态分析", ["开关电路分析"]),
+            ("稳态分析", ["正弦稳态分析"])
+        ]
+        
+        for title, items in analysis:
+            frame = ttk.LabelFrame(right_panel, text=title)
+            for item in items:
+                btn = ttk.Button(frame, text=item, command=lambda i=item: self.run_analysis(i))
+                btn.pack(fill=tk.X, padx=2, pady=2)
+            frame.pack(fill=tk.X, padx=5, pady=2)
+    
+    def select_component(self, event):
+        tree = event.widget
+        item = tree.selection()[0]
+        text = tree.item(item, "text")
+        if text in ["电阻", "电容", "二极管"]:  # 示例元件
+            self.current_component = text
+    
+    def place_component(self, event):
+        if self.current_component:
+            x, y = event.x, event.y
+            # 绘制元件图形（简单示例）
+            if self.current_component == "电阻":
+                self.canvas.create_rectangle(x-20, y-10, x+20, y+10, fill="gray")
+                self.canvas.create_text(x, y, text="R")
+            elif self.current_component == "电容":
+                self.canvas.create_rectangle(x-15, y-5, x+15, y+5, fill="blue")
+                self.canvas.create_text(x, y, text="C")
+            # 记录元件信息
+            self.components.append({
+                "type": self.current_component,
+                "position": (x, y),
+                "properties": {}  # 可添加参数
+            })
+    
+    def draw_wire(self, event):
+        # 连线绘制逻辑（简化示例）
+        if self.current_component == "导线":
+            if not hasattr(self, 'wire_start'):
+                self.wire_start = (event.x, event.y)
+            else:
+                self.canvas.create_line(self.wire_start, (event.x, event.y), fill="black")
+                self.wire_start = (event.x, event.y)
+    
+    def finish_wire(self, event):
+        if hasattr(self, 'wire_start'):
+            del self.wire_start
+    
+    def run_analysis(self, method):
+        messagebox.showinfo("分析功能", f"执行 {method} 分析（功能待实现）")
+    
+    def new_project(self):
+        self.canvas.delete("all")
+        self.components = []
+        self.wires = []
+    
+    def save_project(self):
+        data = {
+            "components": self.components,
+            "wires": self.wires
+        }
+        file_path = filedialog.asksaveasfilename(defaultextension=".cir")
+        if file_path:
+            with open(file_path, "w") as f:
+                json.dump(data, f)
+    
+    def open_project(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Circuit Files", "*.cir")])
+        if file_path:
+            with open(file_path, "r") as f:
+                data = json.load(f)
+            self.redraw_canvas(data)
+    
+    def redraw_canvas(self, data):
+        self.canvas.delete("all")
+        for comp in data["components"]:
+            # 根据保存的数据重新绘制元件
+            pass  # 需要实现具体绘制逻辑
+    
+    def show_about(self):
+        messagebox.showinfo("关于", "电路分析软件 v1.0\n作者: Your Name")
+    
+    def toolbar_action(self, tool):
+        if tool == "新建":
+            self.new_project()
+        elif tool == "打开":
+            self.open_project()
+        elif tool == "保存":
+            self.save_project()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = CircuitSimulator(root)
+    root.mainloop()
+'''
+./circuit/analysis_types.py:
+'''
+# circuit/analysis_types.py
+class AnalysisType:
+    DC_ANALYSIS = "直流分析"
+    AC_ANALYSIS = "交流分析"
+    TRANSIENT_ANALYSIS = "瞬态分析"
+    SINUSOIDAL_STEADY_STATE_ANALYSIS = "正弦稳态分析"
+    CIRCUIT_THEOREMS = "电路定理" # e.g., Thevenin, Norton, Superposition
+    LARGE_SIGNAL_ANALYSIS = "大信号分析"
+    SMALL_SIGNAL_ANALYSIS = "小信号分析"
+    SWITCHING_CIRCUIT_ANALYSIS = "开关电路分析"
+
+    ALL_ANALYSIS_TYPES = [
+        DC_ANALYSIS,
+        AC_ANALYSIS,
+        TRANSIENT_ANALYSIS,
+        SINUSOIDAL_STEADY_STATE_ANALYSIS,
+        CIRCUIT_THEOREMS,
+        LARGE_SIGNAL_ANALYSIS,
+        SMALL_SIGNAL_ANALYSIS,
+        SWITCHING_CIRCUIT_ANALYSIS,
+    ]
+'''
+./circuit/elements.py:
+'''
+# circuit/elements.py
+class CircuitElement:
+    def __init__(self, name, value=None, nodes=None, properties=None):
+        self.name = name
+        self.value = value  # Numerical value (e.g., resistance, capacitance, voltage)
+        self.nodes = nodes if nodes is not None else [] # List of connected node names/IDs
+        self.properties = properties if properties is not None else {} # Dictionary for other properties
+
+    def __str__(self):
+        return f"{self.__class__.__name__}(name={self.name}, value={self.value}, nodes={self.nodes})"
+
+class Resistor(CircuitElement):
+    def __init__(self, name, resistance, nodes):
+        super().__init__(name, resistance, nodes)
+
+class Capacitor(CircuitElement):
+    def __init__(self, name, capacitance, nodes):
+        super().__init__(name, capacitance, nodes)
+
+class Inductor(CircuitElement):
+    def __init__(self, name, inductance, nodes):
+        super().__init__(name, inductance, nodes)
+
+class Diode(CircuitElement): # Simple Diode - can be extended with models later
+    def __init__(self, name, nodes):
+        super().__init__(name, nodes)
+
+class TransistorNMOS(CircuitElement): # Simple NMOS - can be extended with models later
+    def __init__(self, name, nodes): # nodes: [drain, gate, source]
+        super().__init__(name, nodes)
+
+class TransistorPMOS(CircuitElement): # Simple PMOS - can be extended with models later
+    def __init__(self, name, nodes): # nodes: [drain, gate, source]
+        super().__init__(name, nodes)
+
+class TransistorNPNBJT(CircuitElement): # Simple NPN BJT
+    def __init__(self, name, nodes): # nodes: [collector, base, emitter]
+        super().__init__(name, nodes)
+
+class TransistorPNPBJT(CircuitElement): # Simple PNP BJT
+    def __init__(self, name, nodes): # nodes: [collector, base, emitter]
+        super().__init__(name, nodes)
+
+class OpAmp(CircuitElement): # Ideal OpAmp - can be extended later
+    def __init__(self, name, nodes): # nodes: [output, non_inverting_input, inverting_input]
+        super().__init__(name, nodes)
+
+class SwitchSPST(CircuitElement): # Single Pole Single Throw Switch (SPST)
+    def __init__(self, name, initial_state, nodes): # initial_state: 'open' or 'closed'
+        super().__init__(name, properties={'state': initial_state}, nodes=nodes)
+
+class VoltageSourceDC(CircuitElement):
+    def __init__(self, name, voltage, nodes): # nodes: [positive, negative]
+        super().__init__(name, voltage, nodes)
+
+class CurrentSourceDC(CircuitElement):
+    def __init__(self, name, current, nodes): # nodes: [positive, negative] - direction of current flow
+        super().__init__(name, current, nodes)
+
+class VoltageSourceAC(CircuitElement): # Basic AC Source - sinusoidal
+    def __init__(self, name, amplitude, frequency, nodes):
+        super().__init__(name, value=amplitude, nodes=nodes, properties={'frequency': frequency})
+
+class CurrentSourceAC(CircuitElement): # Basic AC Source - sinusoidal
+    def __init__(self, name, amplitude, frequency, nodes):
+        super().__init__(name, value=amplitude, nodes=nodes, properties={'frequency': frequency})
+
+class Wire(CircuitElement): # Represents a wire connection - no value
+    def __init__(self, name, nodes):
+        super().__init__(name, None, nodes)
+
+class Ground(CircuitElement): # Ground node - often node '0'
+    def __init__(self, name, node_name='0'):
+        super().__init__(name, None, [node_name]) # Ground is connected to a single node
+
+class Node(CircuitElement): # Explicit node component (can be useful for labeling)
+    def __init__(self, name):
+        super().__init__(name) # Nodes themselves don't have value or connections initially, connections are made via wires/components
+
+# Example usage (for testing):
+if __name__ == '__main__':
+    r1 = Resistor("R1", 1000, ["N1", "N2"])
+    c1 = Capacitor("C1", 1e-6, ["N2", "0"])
+    v1 = VoltageSourceDC("V1", 5, ["N1", "0"])
+    print(r1)
+    print(c1)
+    print(v1)
+'''
+./circuit/netlist.py:
+'''
+# circuit/netlist.py
+import json
+from circuit.elements import * # Import element classes
+
+class NetlistHandler:
+    def __init__(self):
+        pass
+
+    def load_netlist(self, filepath):
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                components_data = data.get('components', [])
+                wires_data = data.get('wires', [])
+
+                components = []
+                for comp_data in components_data:
+                    comp_type = comp_data['type']
+                    comp_name = comp_data['name']
+                    comp_value = comp_data.get('value')
+                    comp_nodes = comp_data['nodes']
+                    comp_properties = comp_data.get('properties', {})
+
+                    element_class = globals().get(comp_type) # Dynamically get class from string name
+                    if element_class:
+                        component = element_class(comp_name, comp_value, comp_nodes, comp_properties) # Assuming constructor matches
+                        components.append(component)
+                    else:
+                        print(f"Warning: Unknown component type '{comp_type}' in netlist.")
+
+                wires = [] # Wires are currently just data, not element instances in loaded netlist
+                for wire_data in wires_data:
+                    wires.append(wire_data) # Just load wire data as is for now
+
+                return components, wires
+
+        except FileNotFoundError:
+            print(f"Error: Netlist file not found: {filepath}")
+            return [], [] # Return empty lists if file not found
+        except json.JSONDecodeError:
+            print(f"Error: Invalid JSON format in netlist file: {filepath}")
+            return [], []
+        except Exception as e:
+            print(f"Error loading netlist: {e}")
+            return [], []
+
+
+    def save_netlist(self, filepath, components, wires):
+        component_list = []
+        for comp in components:
+            comp_data = {
+                'type': comp.__class__.__name__, # Store class name as type
+                'name': comp.name,
+                'nodes': comp.nodes,
+            }
+            if comp.value is not None:
+                comp_data['value'] = comp.value
+            if comp.properties:
+                comp_data['properties'] = comp.properties
+            component_list.append(comp_data)
+
+        netlist_data = {
+            'components': component_list,
+            'wires': wires # Save wire data as is
+        }
+
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(netlist_data, f, indent=4) # Indent for readability
+            print(f"Netlist saved to {filepath}")
+            return True
+        except Exception as e:
+            print(f"Error saving netlist: {e}")
+            return False
+
+    def parse_netlist(self, netlist_text):
+        # Placeholder for actual netlist parsing (e.g., SPICE format)
+        print("Netlist parsing not implemented yet.")
+        pass
+
+# Example usage (for testing):
+if __name__ == '__main__':
+    netlist_handler = NetlistHandler()
+
+    # Create some elements
+    components_to_save = [
+        Resistor("R1", 1000, ["N1", "N2"]),
+        Capacitor("C1", 1e-6, ["N2", "0"]),
+        VoltageSourceDC("V1", 5, ["N1", "0"])
+    ]
+    wires_to_save = [
+        {"start": [100, 100], "end": [200, 100]},
+        {"start": [200, 100], "end": [200, 200]}
+    ]
+
+    # Save to netlist file
+    netlist_handler.save_netlist("test_netlist.cir", components_to_save, wires_to_save)
+
+    # Load from netlist file
+    loaded_components, loaded_wires = netlist_handler.load_netlist("test_netlist.cir")
+    print("\nLoaded Components:")
+    for comp in loaded_components:
+        print(comp)
+    print("\nLoaded Wires:", loaded_wires)
+'''
+./circuit/solver.py:
+'''
+# circuit/solver.py
+import numpy as np
+
+class CircuitSolver:
+    def __init__(self):
+        pass
+
+    def solve_dc(self, components):
+        """
+        Performs DC analysis using nodal analysis.
+        Simplified for resistors and DC voltage/current sources only.
+        """
+        nodes = set()
+        node_components = {} # Components connected to each node
+
+        # Collect nodes and components connected to each node
+        for comp in components:
+            for node in comp.nodes:
+                nodes.add(node)
+                if node not in node_components:
+                    node_components[node] = []
+                node_components[node].append(comp)
+
+        # Remove ground node '0' from unknowns if present, use it as reference.
+        if '0' in nodes:
+            nodes.remove('0')
+        node_list = list(nodes) # Ordered list of unknown nodes
+        num_nodes = len(node_list)
+
+        if num_nodes == 0:
+            return {}, {} # No unknown nodes, trivial circuit
+
+        # Initialize matrices for nodal analysis: G (conductance), I (current sources), V (node voltages)
+        G = np.zeros((num_nodes, num_nodes))
+        I = np.zeros(num_nodes)
+
+        node_index_map = {node: i for i, node in enumerate(node_list)} # Map node name to index in matrices
+
+        # Fill in G and I matrices
+        for i, node_name in enumerate(node_list):
+            for comp in node_components[node_name]:
+                comp_type = type(comp)
+                comp_nodes = comp.nodes
+
+                if comp_type is Resistor:
+                    resistance = comp.value
+                    conductance = 1 / resistance
+                    other_node = [n for n in comp_nodes if n != node_name][0] # Get the other node
+
+                    G[i, i] += conductance # Diagonal element (sum of conductances connected to node i)
+                    if other_node != '0': # If not connected to ground
+                        j = node_index_map.get(other_node)
+                        if j is not None:
+                            G[i, j] -= conductance # Off-diagonal element (negative conductance between nodes i and j)
+
+                elif comp_type is VoltageSourceDC:
+                    voltage = comp.value
+                    pos_node, neg_node = comp_nodes
+
+                    if pos_node == node_name:
+                        I[i] += voltage / 1e9 # Approximating as a large current source for voltage source (simplified nodal analysis)
+                    elif neg_node == node_name:
+                        I[i] -= voltage / 1e9 # Approximating as a large current source for voltage source (simplified nodal analysis)
+
+                elif comp_type is CurrentSourceDC:
+                    current = comp.value
+                    pos_node, neg_node = comp_nodes # Current direction from pos_node to neg_node
+
+                    if pos_node == node_name:
+                        I[i] -= current # Current source flowing *out* of the node
+                    elif neg_node == node_name:
+                        I[i] += current # Current source flowing *into* the node
+
+        try:
+            # Solve the linear system GV = I for node voltages V
+            V_unknown = np.linalg.solve(G, I)
+            node_voltages = {'0': 0} # Ground node voltage is 0
+            for i, node_name in enumerate(node_list):
+                node_voltages[node_name] = V_unknown[i]
+
+            branch_currents = {}
+            for comp in components:
+                if type(comp) is Resistor:
+                    node1, node2 = comp.nodes
+                    v1 = node_voltages.get(node1, 0) # Get node voltage, default to 0 if not found (ground)
+                    v2 = node_voltages.get(node2, 0)
+                    current = (v1 - v2) / comp.value # Ohm's law, current from node1 to node2
+                    branch_currents[comp.name] = current
+                elif type(comp) is VoltageSourceDC:
+                    # For a voltage source, current calculation is more complex in nodal analysis
+                    # For simplicity, we can approximate or leave it for more advanced analysis
+                    branch_currents[comp.name] = "N/A (Voltage Source)"
+                elif type(comp) is CurrentSourceDC:
+                    branch_currents[comp.name] = comp.value # Current through current source is its defined value
+
+            return node_voltages, branch_currents
+
+        except np.linalg.LinAlgError:
+            return {"error": "Singular matrix - Circuit may have issues (e.g., floating nodes, voltage source loop)."}, {}
+        except Exception as e:
+            return {"error": f"Error during DC analysis: {e}"}, {}
+
+
+    def solve_ac(self, circuit_netlist):
+        # Placeholder for AC analysis
+        return {"message": "AC analysis not implemented yet."}, {}
+
+    def solve_transient(self, circuit_netlist):
+        # Placeholder for Transient analysis
+        return {"message": "Transient analysis not implemented yet."}, {}
+
+    def solve_sinusoidal_steady_state(self, circuit_netlist):
+        # Placeholder for Sinusoidal Steady State analysis
+        return {"message": "Sinusoidal Steady State analysis not implemented yet."}, {}
+
+
+# Example usage (for testing):
+if __name__ == '__main__':
+    solver = CircuitSolver()
+
+    # Simple voltage divider circuit
+    components_example = [
+        Resistor("R1", 1000, ["N1", "N2"]),
+        Resistor("R2", 2000, ["N2", "0"]),
+        VoltageSourceDC("V1", 9, ["N1", "0"])
+    ]
+
+    node_voltages, branch_currents = solver.solve_dc(components_example)
+    print("DC Analysis Results:")
+    print("Node Voltages:", node_voltages)
+    print("Branch Currents:", branch_currents)
+
+    # Example with a current source
+    components_example_current_source = [
+        Resistor("R3", 500, ["N3", "0"]),
+        CurrentSourceDC("I1", 0.01, ["N3", "0"]) # 10mA source into node N3
+    ]
+    node_voltages_cs, branch_currents_cs = solver.solve_dc(components_example_current_source)
+    print("\nDC Analysis with Current Source:")
+    print("Node Voltages:", node_voltages_cs)
+    print("Branch Currents:", branch_currents_cs)
+
+    # Example with error case (floating node - R only connected to one node, except ground)
+    components_error_example = [
+        Resistor("R4", 1000, ["N4", "0"]), # R connected to ground and N4
+        Resistor("R5", 2000, ["N5", "N4"]), # R connected to N4 and N5, N5 floating (except ground)
+        VoltageSourceDC("V2", 5, ["N4", "0"])
+    ]
+    node_voltages_err, branch_currents_err = solver.solve_dc(components_error_example)
+    print("\nDC Analysis Error Example:")
+    print("Node Voltages:", node_voltages_err)
+    print("Branch Currents:", branch_currents_err)
+'''
+./gui/analysis.py:
+'''
+# gui/analysis.py
+import tkinter as tk
+from tkinter import ttk, messagebox
+from circuit.solver import CircuitSolver # Import the solver
+from circuit.analysis_types import AnalysisType
+
+class AnalysisPanel:
+    def __init__(self, parent, root):
+        self.parent = parent # CircuitSimulator instance
+        self.root = root
+        self.solver = CircuitSolver() # Instantiate the solver
+
+    def create_analysis_panel(self):
+        right_panel = ttk.Frame(self.root, width=300)
+        right_panel.pack(side=tk.RIGHT, fill=tk.Y)
+
+        analysis = [
+            (AnalysisType.DC_ANALYSIS, [AnalysisType.DC_ANALYSIS]), # Using AnalysisType constants
+            (AnalysisType.CIRCUIT_THEOREMS, [AnalysisType.CIRCUIT_THEOREMS]),
+            (AnalysisType.LARGE_SIGNAL_ANALYSIS, [AnalysisType.LARGE_SIGNAL_ANALYSIS, AnalysisType.SMALL_SIGNAL_ANALYSIS]),
+            (AnalysisType.SWITCHING_CIRCUIT_ANALYSIS, [AnalysisType.SWITCHING_CIRCUIT_ANALYSIS]),
+            (AnalysisType.SINUSOIDAL_STEADY_STATE_ANALYSIS, [AnalysisType.SINUSOIDAL_STEADY_STATE_ANALYSIS])
+        ]
+
+        for title, items in analysis:
+            frame = ttk.LabelFrame(right_panel, text=title)
+            for item in items:
+                btn = ttk.Button(frame, text=item, command=lambda analysis_type=item: self.run_analysis_command(analysis_type)) # Pass analysis type
+                btn.pack(fill=tk.X, padx=2, pady=2)
+            frame.pack(fill=tk.X, padx=5, pady=2)
+
+    def run_analysis_command(self, analysis_type):
+        components = self.parent.components # Get components from main app
+        if not components:
+            messagebox.showwarning("Warning", "No components in the circuit to analyze.")
+            return
+
+        if analysis_type == AnalysisType.DC_ANALYSIS:
+            results, currents = self.solver.solve_dc(components)
+            if "error" in results:
+                messagebox.showerror("DC Analysis Error", results["error"])
+            else:
+                result_str = "DC Analysis Results:\nNode Voltages:\n"
+                for node, voltage in results.items():
+                    result_str += f"Node {node}: {voltage:.3f}V\n"
+                result_str += "\nBranch Currents:\n"
+                for comp_name, current in currents.items():
+                    result_str += f"{comp_name}: {current}\n" # Current might be "N/A" for voltage source
+                messagebox.showinfo("DC Analysis Results", result_str)
+        elif analysis_type == AnalysisType.AC_ANALYSIS:
+            results, currents = self.solver.solve_ac(components) # Example, AC not implemented yet
+            messagebox.showinfo("Analysis Result", results.get("message", "Analysis type not yet fully implemented."))
+        else: # Placeholder for other analysis types
+            messagebox.showinfo("Analysis Result", f"{analysis_type} analysis (Feature to be implemented).")
+        self.parent.run_analysis(analysis_type) # Call parent's run_analysis method (for potential further actions)
+'''
+./gui/canvas.py:
+'''
+# gui/canvas.py
+import tkinter as tk
+from tkinter import ttk
+from circuit.elements import * # Import element classes
+
+class CircuitCanvas:
+    def __init__(self, parent, root):
+        self.parent = parent # CircuitSimulator instance
+        self.root = root
+        self.canvas = None
+        self.wire_start = None
+        self.component_counter = {} # To generate unique component names
+
+    def create_canvas(self):
+        center_frame = ttk.Frame(self.root)
+        center_frame.pack(expand=True, fill=tk.BOTH)
+
+        self.canvas = tk.Canvas(center_frame, bg="white")
+        self.canvas.pack(expand=True, fill=tk.BOTH)
+
+        # 画布事件绑定
+        self.canvas.bind("<Button-1>", self.place_component_event)
+        self.canvas.bind("<B1-Motion>", self.draw_wire_event)
+        self.canvas.bind("<ButtonRelease-1>", self.finish_wire_event)
+
+    def place_component_event(self, event):
+        component_type_name = self.parent.current_component # Get component type name string
+        if component_type_name:
+            x, y = event.x, event.y
+            self.draw_component(x, y, component_type_name)
+            self.create_component_instance(x, y, component_type_name) # Create element instance
+
+    def get_unique_component_name(self, component_type_name):
+        if component_type_name not in self.component_counter:
+            self.component_counter[component_type_name] = 1
+        else:
+            self.component_counter[component_type_name] += 1
+        return f"{component_type_name[0].upper()}{self.component_counter[component_type_name]}" # e.g., R1, C2, V3...
+
+    def create_component_instance(self, x, y, component_type_name):
+        component_name = self.get_unique_component_name(component_type_name)
+        nodes = [] # Nodes will be connected later via wires/node placement
+        component_instance = None
+
+        if component_type_name == "电阻":
+            component_instance = Resistor(component_name, 1000, nodes) # Default 1kOhm
+        elif component_type_name == "电容":
+            component_instance = Capacitor(component_name, 1e-6, nodes) # Default 1uF
+        elif component_type_name == "二极管":
+            component_instance = Diode(component_name, nodes)
+        elif component_type_name == "导线":
+            pass # Wires are handled differently, no instance created directly upon "placement"
+        elif component_type_name == "直流电压源":
+            component_instance = VoltageSourceDC(component_name, 5, nodes) # Default 5V
+        elif component_type_name == "直流电流源":
+            component_instance = CurrentSourceDC(component_name, 0.001, nodes) # Default 1mA
+        elif component_type_name == "地":
+            component_instance = Ground(component_name)
+            self.parent.components.append(component_instance) # Ground is a special component, add immediately
+            return # Ground doesn't need to be added to components list again below
+
+        if component_instance:
+            self.parent.components.append(component_instance) # Add to main app's components list
+            print(f"Component '{component_name}' of type '{component_type_name}' placed at ({x}, {y})")
+
+
+    def draw_component(self, x, y, component_type):
+        # 绘制元件图形（简单示例）
+        if component_type == "电阻":
+            self.canvas.create_rectangle(x-20, y-10, x+20, y+10, fill="gray")
+            self.canvas.create_text(x, y, text="R")
+        elif component_type == "电容":
+            self.canvas.create_rectangle(x-15, y-5, x+15, y+5, fill="blue")
+            self.canvas.create_text(x, y, text="C")
+        elif component_type == "二极管":
+            self.canvas.create_polygon([x-15, y-10, x+15, y, x-15, y+10], fill="lightblue")
+            self.canvas.create_line(x-15, y-10, x-15, y+10) # Cathode bar
+            self.canvas.create_text(x, y, text="D")
+        elif component_type == "导线":
+            pass # Wire drawing is handled in draw_wire_event and finish_wire_event
+        elif component_type == "直流电压源":
+            self.canvas.create_oval(x-15, y-15, x+15, y+15, outline="red")
+            self.canvas.create_line(x-10, y, x+10, y, fill="red") # + sign
+            self.canvas.create_line(x, y-10, x, y+10, fill="red") # - sign
+            self.canvas.create_text(x, y, text="V")
+        elif component_type == "直流电流源":
+            self.canvas.create_oval(x-15, y-15, x+15, y+15, outline="green")
+            self.canvas.create_line(x-10, y, x+10, y, arrow=tk.LAST, fill="green") # Arrow for current
+            self.canvas.create_text(x, y, text="I")
+        elif component_type == "地":
+            self.canvas.create_polygon([x-10, y+10, x+10, y+10, x, y-10], fill="brown")
+            self.canvas.create_line(x-10, y+10, x+10, y+10)
+            self.canvas.create_line(x-7, y+15, x+7, y+15)
+            self.canvas.create_line(x-4, y+20, x+4, y+20)
+            self.canvas.create_text(x, y-20, text="GND")
+
+
+    def draw_wire_event(self, event):
+        # 连线绘制逻辑（简化示例）
+        if self.parent.current_component == "导线": # Check component selection from parent
+            if not self.wire_start:
+                self.wire_start = (event.x, event.y)
+            else:
+                self.canvas.create_line(self.wire_start, (event.x, event.y), fill="black")
+                self.wire_start = (event.x, event.y)
+
+    def finish_wire_event(self, event):
+        if hasattr(self, 'wire_start') and self.parent.current_component == "导线": # Check component selection from parent
+            if self.wire_start:
+                wire_end = (event.x, event.y)
+                self.parent.wires.append({"start": self.wire_start, "end": wire_end}) # Store wire data
+                del self.wire_start
+
+
+    def clear_canvas(self):
+        self.canvas.delete("all")
+        self.component_counter = {} # Reset component counter when clearing canvas
+
+    def redraw_canvas(self, data):
+        self.clear_canvas()
+        self.component_counter = {} # Reset counter for redraw as well
+        if data and "components" in data:
+            for comp_data in data["components"]:
+                comp_type_name = comp_data["type"]
+                pos = comp_data["position"] # Assuming position was saved
+                if pos:
+                    self.draw_component(pos[0], pos[1], comp_type_name)
+                    # Recreate component instances here if needed for simulation
+                    # and add them to self.parent.components
+                    element_class = globals().get(comp_type_name)
+                    if element_class:
+                        # Basic recreation for display, may need more robust method for loaded data
+                        component_instance = element_class(comp_data['name'], comp_data.get('value'), comp_data['nodes'], comp_data.get('properties'))
+                        self.parent.components.append(component_instance)
+                        if comp_type_name in self.component_counter:
+                           self.component_counter[comp_type_name] = max(self.component_counter[comp_type_name], int(comp_data['name'][1:]) if comp_data['name'][1:].isdigit() else 0)
+                        else:
+                           self.component_counter[comp_type_name] = int(comp_data['name'][1:]) if comp_data['name'][1:].isdigit() else 0
+
+        if data and "wires" in data:
+            for wire_data in data["wires"]:
+                if "start" in wire_data and "end" in wire_data:
+                    self.canvas.create_line(wire_data["start"], wire_data["end"], fill="black")
+'''
+./gui/components.py:
+'''
+import tkinter as tk
+from tkinter import ttk
+
+class ComponentPanel:
+    def __init__(self, parent, root):
+        self.parent = parent # CircuitSimulator instance
+        self.root = root
+
+    def create_component_panel(self):
+        left_panel = ttk.Frame(self.root, width=200)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y)
+
+        # 元件分类树
+        tree = ttk.Treeview(left_panel)
+        tree.heading("#0", text="元件库", anchor=tk.W)
+
+        categories = {
+            "线性电阻": ["电阻"],
+            "非线性电阻": ["二极管", "三极管(NMOS)", "三极管(PMOS)", "NPNBJT", "PNPBJT", "集成运放"],
+            "动态元件": ["电容", "电感"],
+            "开关元件": ["开关(开)", "开关(关)"],
+            "电源元件": ["直流电压源", "直流电流源", "交流电压源", "交流电流源"],
+            "其他": ["导线", "地", "结点"]
+        }
+
+        for cat, items in categories.items():
+            node = tree.insert("", tk.END, text=cat)
+            for item in items:
+                tree.insert(node, tk.END, text=item)
+
+        tree.bind("<<TreeviewSelect>>", self.select_component_event)
+        tree.pack(expand=True, fill=tk.BOTH)
+
+    def select_component_event(self, event):
+        tree = event.widget
+        item = tree.selection()[0]
+        text = tree.item(item, "text")
+        if text in ["电阻", "电容", "二极管", "导线", "直流电压源", "直流电流源", "地"]:
+            self.parent.select_component(text) # Call parent's select_component method
+'''
+./gui/toolbar.py:
+'''
+import tkinter as tk
+from tkinter import ttk
+
+class Toolbar:
+    def __init__(self, parent, root):
+        self.parent = parent # CircuitSimulator instance
+        self.root = root
+
+    def create_toolbar(self):
+        toolbar = ttk.Frame(self.root)
+        tools = ["新建", "打开", "保存"] # Removed toolbar_action and moved to FileIOHandler
+        file_io_handler = self.parent.file_io_handler # Access FileIOHandler from parent
+        tool_commands = {
+            "新建": file_io_handler.new_project,
+            "打开": file_io_handler.open_project,
+            "保存": file_io_handler.save_project,
+        }
+        for tool in tools:
+            btn = ttk.Button(toolbar, text=tool, command=tool_commands[tool])
+            btn.pack(side=tk.LEFT, padx=2, pady=2)
+        toolbar.pack(side=tk.TOP, fill=tk.X)
+
+    # toolbar_action moved to file_io_handler.py
+'''
+./gui/widgets.py:
+'''
+
+'''
+./prompts/tools/combineCodes.py:
+'''
+import os
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description='将指定目录下的所有Python文件内容合并到输出文件中。')
+    parser.add_argument('directory', help='要遍历的根目录')
+    parser.add_argument('output_file', help='输出文件路径')
+    args = parser.parse_args()
+
+    start_dir = os.path.abspath(args.directory)
+    output_content = []
+
+    for root, dirs, files in os.walk(start_dir):
+        if root == start_dir and '.conda' in dirs:
+            dirs.remove('.conda')
+        for filename in files:
+            if filename.endswith('.py'):
+                file_abs_path = os.path.join(root, filename)
+                rel_path = os.path.relpath(file_abs_path, start_dir)
+                
+                # 格式化路径为以./开头的统一格式
+                formatted_path = './' + rel_path.replace(os.sep, '/')
+                
+                try:
+                    with open(file_abs_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                except Exception as e:
+                    print(f"处理文件 {file_abs_path} 时出错: {e}")
+                    continue
+                
+                # 构建条目并添加到输出内容
+                entry = f"{formatted_path}:\n'''\n{content}\n'''\n"
+                output_content.append(entry)
+
+    # 将所有内容写入输出文件
+    with open(args.output_file, 'w', encoding='utf-8') as out_file:
+        out_file.writelines(output_content)
+
+if __name__ == '__main__':
+    main()
+'''
+./utils/file_io.py:
+'''
+import json
+from tkinter import filedialog, messagebox
+
+class FileIOHandler:
+    def __init__(self, parent, root):
+        self.parent = parent # CircuitSimulator instance
+        self.root = root
+
+    def new_project(self):
+        self.parent.circuit_canvas.clear_canvas()
+        self.parent.set_components([]) # Use setter method
+        self.parent.set_wires([])      # Use setter method
+
+    def save_project(self):
+        data = {
+            "components": self.parent.get_components(), # Use getter method
+            "wires": self.parent.get_wires()           # Use getter method
+        }
+        file_path = filedialog.asksaveasfilename(defaultextension=".cir")
+        if file_path:
+            with open(file_path, "w") as f:
+                json.dump(data, f)
+
+    def open_project(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Circuit Files", "*.cir")])
+        if file_path:
+            with open(file_path, "r") as f:
+                data = json.load(f)
+            self.parent.circuit_canvas.redraw_canvas(data) # Use canvas redraw
+            self.parent.set_components(data["components"]) # Use setter method
+            self.parent.set_wires(data["wires"])           # Use setter method
+'''
+./utils/helpers.py:
+'''
+from tkinter import messagebox
+
+def show_about():
+    messagebox.showinfo("关于", "电路分析软件 v1.0\n作者: Your Name")
+'''
