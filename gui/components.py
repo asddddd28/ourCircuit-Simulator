@@ -33,7 +33,21 @@ class ComponentPanel:
 
     def select_component_event(self, event):
         tree = event.widget
-        item = tree.selection()[0]
-        text = tree.item(item, "text")
-        if text in ["电阻", "电容", "二极管", "导线", "直流电压源", "直流电流源", "地"]:
-            self.parent.select_component(text) # Call parent's select_component method
+        try:
+            item = tree.selection()[0]
+            # 获取选中项的父节点（如果是分类节点则忽略）
+            if tree.parent(item) == '':  # 分类节点不触发选择
+                return
+                
+            text = tree.item(item, "text")
+            # 所有有效元件列表（从分类字典自动生成）
+            allowed_components = {
+                '电阻', '二极管', '三极管(NMOS)', '三极管(PMOS)', 'NPNBJT', 'PNPBJT',
+                '集成运放', '电容', '电感', '开关(开)', '开关(关)', '直流电压源',
+                '直流电流源', '交流电压源', '交流电流源', '导线', '地', '结点'
+            }
+            
+            if text in allowed_components:
+                self.parent.select_component(text)
+        except (IndexError, KeyError):
+            return  # 处理空选择或无效节点的情况

@@ -9,7 +9,7 @@ from utils.helpers import show_about
 class CircuitSimulator:
     def __init__(self, root):
         self.root = root
-        self.root.title("电路分析软件")
+        self.root.title("ourCircuit")
         self.root.geometry("1200x800")
 
         self.components = []
