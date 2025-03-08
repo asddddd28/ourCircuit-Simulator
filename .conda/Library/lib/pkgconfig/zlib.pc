@@ -1,0 +1,13 @@
+prefix=e:/ourCircuit-Simulator-main/.conda/Library
+exec_prefix=e:/ourCircuit-Simulator-main/.conda/Library
+libdir=e:/ourCircuit-Simulator-main/.conda/Library/lib
+sharedlibdir=e:/ourCircuit-Simulator-main/.conda/Library/lib
+includedir=e:/ourCircuit-Simulator-main/.conda/Library/include
+
+Name: zlib
+Description: zlib compression library
+Version: 1.2.13
+
+Requires:
+Libs: -L${libdir} -L${sharedlibdir} -lz
+Cflags: -I${includedir}
